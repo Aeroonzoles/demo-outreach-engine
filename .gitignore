@@ -1,0 +1,5 @@
+.env
+*.db
+demos/
+__pycache__/
+leads.csv
