@@ -1,33 +1,64 @@
 # Demo Outreach Engine
 
-An AI-assisted pipeline that builds a free demo website for local businesses without one, drafts a
-personalised email linking to it, and sends a small, capped number per day. Built with **zero
-third-party dependencies** (Python standard library only).
+[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
 
-**Pipeline:** `import-leads` → `build-demos` → `draft` → `review/approve` → `send` → `reply`
+An AI-assisted pipeline for small web-design businesses: it builds a free demo website for local
+businesses that don't have one, drafts a personalised email linking to the demo, and sends a small,
+capped number per day. **Python standard library only, no dependencies.**
 
-## Guardrails (the point of the project)
-- `DRY_RUN=true` by default: nothing is sent until you turn it off.
-- **Daily cap** on sends (default 20).
-- **Human review gate:** you hand-approve the first N emails before auto-approval starts.
-- **Content lint:** blocks "guarantee", "page one", placeholder text (e.g. "Your Name", "yourdomain.com"); requires an opt-out and sender identity. Checked again at send time.
-- **Suppression list:** anyone who replies STOP is never contacted again.
-- One email per lead, no follow-up spam. Replies are classified, never auto-answered.
+The focus of the project is **safe automation**: every step that could annoy a real person has a
+guardrail, and each guardrail has a test.
 
-## Run
-```bash
-cp .env.example .env            # fill in, never commit
-python -m unittest discover -s tests -v
-python -m outreach.cli import-leads leads.csv   # name,email,category,city,phone
-python -m outreach.cli build-demos && python -m outreach.cli draft
-python -m outreach.cli review && python -m outreach.cli approve
-python -m outreach.cli send     # dry run until DRY_RUN=false
+## How it works
+
+```
+leads.csv -> import-leads -> build-demos -> draft -> review/approve -> send -> reply handling
 ```
 
-## Before real sending
-Host the `demos/` folder, set SPF/DKIM on your sending domain, source leads from the official
-Google Places API or manual research (not scraping), and check Indian rules (TRAI covers SMS/calls;
-DPDP Act covers personal data) with a CA or lawyer.
+| Stage | What it does |
+|---|---|
+| `import-leads` | Reads a CSV, rejects invalid or suppressed emails, skips duplicates |
+| `build-demos` | Generates one static demo site per business (HTML-escaped) |
+| `draft` | Writes one personalised email per lead |
+| `review` / `approve` | You read and approve drafts by hand |
+| `send` | Sends via SMTP, capped per day, only approved and clean emails |
+| `reply` | Classifies replies; STOP adds the sender to a permanent suppression list |
+
+## Guardrails
+- **Dry run by default** (`DRY_RUN=true`): nothing is sent until you turn it off.
+- **Daily cap** on sends (default 20).
+- **Human review gate:** the first N emails (default 20) need manual approval before auto-approval starts.
+- **Content lint**, checked at draft time and again at send time: blocks claims like "guarantee" or "page one", placeholder text such as "Your Name", and requires an opt-out line and sender identity.
+- **Suppression list:** anyone who replies STOP is never contacted again.
+- **One email per lead**, no follow-up spam. Replies are classified, never auto-answered.
+
+## Quick start
+
+Windows (PowerShell):
+```powershell
+copy .env.example .env          # then edit .env
+copy leads.sample.csv leads.csv
+python -m unittest discover -s tests -v
+python -m outreach.cli import-leads leads.csv
+python -m outreach.cli build-demos
+python -m outreach.cli draft
+python -m outreach.cli review
+python -m outreach.cli approve
+python -m outreach.cli send      # dry run until DRY_RUN=false
+```
+macOS / Linux: the same commands, with `cp` instead of `copy` and `python3` instead of `python`.
+
+`.env`, `leads.csv` and `*.db` are git-ignored. Never commit them.
+
+## Before sending real email
+Host the `demos/` folder, send from your own domain with SPF/DKIM set up, source leads from the
+official Google Places API or manual research (not scraping), and check the rules that apply to you
+(in India: TRAI covers SMS and calls, the DPDP Act covers personal data). Confirm each business
+really has no website before adding it to the list.
+
+## Tests
+`python -m unittest discover -s tests -v` covers the daily cap, suppression list, review gate,
+dry run, placeholder blocking, reply classification and HTML escaping.
 
 ## Roadmap
 LLM-written site copy and emails, IMAP reply fetching, Places API lead finder, web dashboard.
